@@ -11,13 +11,14 @@
 
 #define PATH_LEN 4096
 
-enum { MODE_DEFAULT, MODE_LONG };
+enum { MODE_DEFAULT, MODE_LONG, MODE_HORIZONTAL };
 int display_mode = MODE_DEFAULT;
 
 void   do_ls(const char *dir);
 char **read_names(const char *dir, int *count, int *maxlen);
 int    term_width(void);
 void   print_columns(const char *dir, char **names, int n, int maxlen);
+void   print_horizontal(const char *dir, char **names, int n, int maxlen);
 void   print_long(const char *dir, char **names, int n);
 void   show_long(const char *dir, const char *name);
 void   print_name(const char *dir, const char *name);
@@ -26,11 +27,13 @@ void   mode_to_str(mode_t m, char *s);
 int main(int argc, char *argv[])
 {
     int opt;
-    while ((opt = getopt(argc, argv, "l")) != -1) {
+    while ((opt = getopt(argc, argv, "lx")) != -1) {
         if (opt == 'l')
             display_mode = MODE_LONG;
+        else if (opt == 'x')
+            display_mode = MODE_HORIZONTAL;
         else {
-            fprintf(stderr, "Usage: %s [-l] [dir...]\n", argv[0]);
+            fprintf(stderr, "Usage: %s [-l] [-x] [dir...]\n", argv[0]);
             exit(1);
         }
     }
@@ -56,6 +59,8 @@ void do_ls(const char *dir)
 
     if (display_mode == MODE_LONG)
         print_long(dir, names, n);
+    else if (display_mode == MODE_HORIZONTAL)
+        print_horizontal(dir, names, n, maxlen);
     else
         print_columns(dir, names, n, maxlen);
 
@@ -115,7 +120,7 @@ void print_columns(const char *dir, char **names, int n, int maxlen)
 
     for (int r = 0; r < rows; r++) {
         for (int c = 0; c < cols; c++) {
-            int i = r + c * rows;             /* down-then-across */
+            int i = r + c * rows;
             if (i >= n)
                 break;
             print_name(dir, names[i]);
@@ -123,6 +128,25 @@ void print_columns(const char *dir, char **names, int n, int maxlen)
         }
         printf("\n");
     }
+}
+
+void print_horizontal(const char *dir, char **names, int n, int maxlen)
+{
+    int width = term_width();
+    int colw  = maxlen + 2;
+    int pos   = 0;                            /* current horizontal position */
+
+    for (int i = 0; i < n; i++) {
+        if (pos > 0 && pos + colw > width) {  /* next name won't fit: wrap */
+            printf("\n");
+            pos = 0;
+        }
+        print_name(dir, names[i]);
+        printf("%*s", colw - (int)strlen(names[i]), "");
+        pos += colw;
+    }
+    if (n > 0)
+        printf("\n");
 }
 
 void print_long(const char *dir, char **names, int n)
